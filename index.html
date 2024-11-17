@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cadastro de Cachorros</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Lista de Cachorros</h1>
+        <button id="addDogBtn" onclick="showAddForm()">Adicionar Cachorro</button>
+
+        <!-- Modal de Adição -->
+        <div id="modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <span class="close" onclick="closeForm()">&times;</span>
+                <h2>Adicionar Cachorro</h2>
+                <input type="text" id="dogName" placeholder="Nome do cachorro" required>
+                <input type="text" id="ownerName" placeholder="Nome do dono" required>
+                <input type="text" id="ownerPhone" placeholder="Telefone do dono" required>
+                <input type="email" id="ownerEmail" placeholder="Email do dono" required>
+                <input type="url" id="dogPhoto" placeholder="URL da foto do cachorro" required>
+                <button onclick="addDog()">Adicionar</button>
+                <button onclick="closeForm()">Cancelar</button>
+            </div>
+        </div>
+
+        <!-- Tabela -->
+        <table id="dogTable">
+            <thead>
+                <tr>
+                    <th>Foto</th>
+                    <th>Nome do Cachorro</th>
+                    <th>Nome do Dono</th>
+                    <th>Telefone</th>
+                    <th>Email</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody id="dogList">
+                <!-- Lista de cachorros será inserida aqui -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // URL do Mocky para buscar a lista de cachorros
+        const mockyUrl = 'https://run.mocky.io/v3/7a3942d5-effd-41fd-91dc-522aa2d282ff'; // Substitua pela URL gerada no Mocky
+
+        // Função para mostrar o formulário de adicionar cachorro
+        function showAddForm() {
+            document.getElementById('modal').style.display = 'flex';
+        }
+
+        // Função para fechar o modal
+        function closeForm() {
+            document.getElementById('modal').style.display = 'none';
+        }
+
+        // Função para verificar se a URL da imagem é válida
+        function isValidImageUrl(url) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(true); // Se a imagem carregar, resolve como verdadeiro
+                img.onerror = () => resolve(false); // Se não conseguir carregar, resolve como falso
+                img.src = url;
+            });
+        }
+
+        // Função para gerar uma imagem aleatória de cachorro não repetida
+        function getRandomDogImage() {
+            let randomImage;
+            let usedImages = JSON.parse(localStorage.getItem('usedImages')) || [];
+
+            do {
+                // Gerar uma URL de imagem aleatória
+                randomImage = `https://placedog.net/500/280?random=${Math.floor(Math.random() * 1000)}`;
+            } while (usedImages.includes(randomImage)); // Verifica se a imagem já foi usada
+
+            // Adiciona a imagem ao histórico de usadas e salva no localStorage
+            usedImages.push(randomImage);
+            localStorage.setItem('usedImages', JSON.stringify(usedImages));
+
+            return randomImage;
+        }
+
+        // Função para buscar cachorros da API ou do localStorage
+        function fetchDogs() {
+            // Verifica se já temos cachorros no localStorage
+            let dogs = JSON.parse(localStorage.getItem('dogs'));
+
+            // Se não houver dados no localStorage, buscar da API
+            if (!dogs || dogs.length === 0) {
+                console.log('Buscando dados da API...');
+                fetch(mockyUrl)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Falha ao buscar dados da API');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        dogs = data;
+                        // Armazenar os cachorros da API no localStorage
+                        localStorage.setItem('dogs', JSON.stringify(dogs));
+                        renderDogs(dogs);
+                    })
+                    .catch(error => {
+                        console.error('Erro ao buscar cachorros da API:', error);
+                        // Se falhar ao buscar da API, tenta carregar do localStorage
+                        if (dogs && dogs.length > 0) {
+                            renderDogs(dogs);
+                        } else {
+                            console.error('Nenhum dado disponível');
+                        }
+                    });
+            } else {
+                renderDogs(dogs);
+            }
+        }
+
+        // Função para renderizar os cachorros na tabela
+        function renderDogs(dogs) {
+            const dogList = document.getElementById('dogList');
+            dogList.innerHTML = ''; // Limpa a tabela antes de adicionar os novos dados
+
+            // Adiciona os cachorros à tabela
+            dogs.forEach(dog => {
+                const row = document.createElement('tr');
+
+                // Verifica se a URL da foto está válida
+                const imageUrl = dog.photo;
+                isValidImageUrl(imageUrl).then(valid => {
+                    // Se a URL for válida, exibe a imagem
+                    const imgTag = valid ? 
+                        `<img src="${imageUrl}" alt="Foto do Cachorro" style="width: 50px; height: 50px;">` : 
+                        `<img src="${getRandomDogImage()}" alt="Imagem não disponível" style="width: 50px; height: 50px;">`;
+
+                    row.innerHTML = `
+                        <td>${imgTag}</td>
+                        <td>${dog.name}</td>
+                        <td>${dog.owner}</td>
+                        <td>${dog.phone}</td>
+                        <td>${dog.email}</td>
+                        <td><button onclick="deleteDog(this)">Deletar</button></td>
+                    `;
+                    dogList.appendChild(row);
+                });
+            });
+        }
+
+        // Função para adicionar um cachorro ao localStorage e à tabela
+        function addDog() {
+            const dogName = document.getElementById('dogName').value;
+            const ownerName = document.getElementById('ownerName').value;
+            const ownerPhone = document.getElementById('ownerPhone').value;
+            const ownerEmail = document.getElementById('ownerEmail').value;
+            const dogPhoto = document.getElementById('dogPhoto').value;
+
+            // Verificar se todos os campos foram preenchidos
+            if (!dogName || !ownerName || !ownerPhone || !ownerEmail || !dogPhoto) {
+                alert("Todos os campos são obrigatórios!");
+                return;
+            }
+
+            // Criar o novo cachorro
+            const newDog = {
+                name: dogName,
+                owner: ownerName,
+                phone: ownerPhone,
+                email: ownerEmail,
+                photo: dogPhoto
+            };
+
+            // Pega os dados do localStorage (caso já existam)
+            const dogs = JSON.parse(localStorage.getItem('dogs')) || [];
+
+            // Adiciona o novo cachorro à lista
+            dogs.push(newDog);
+
+            // Salva a lista atualizada no localStorage
+            localStorage.setItem('dogs', JSON.stringify(dogs));
+
+            // Atualiza a lista de cachorros depois de adicionar o novo
+            renderDogs(dogs);
+
+            // Limpar os campos do formulário após adicionar
+            document.getElementById('dogName').value = '';
+            document.getElementById('ownerName').value = '';
+            document.getElementById('ownerPhone').value = '';
+            document.getElementById('ownerEmail').value = '';
+            document.getElementById('dogPhoto').value = '';
+
+            // Fecha o modal
+            closeForm();
+        }
+
+        // Função para deletar um cachorro do localStorage
+        function deleteDog(button) {
+            const row = button.closest('tr');
+            const dogName = row.cells[1].innerText; // Nome do cachorro (segunda célula)
+
+            // Pega os dados do localStorage (caso já existam)
+            const dogs = JSON.parse(localStorage.getItem('dogs')) || [];
+
+            // Filtra o cachorro a ser deletado
+            const updatedDogs = dogs.filter(dog => dog.name !== dogName);
+
+            // Atualiza o localStorage
+            localStorage.setItem('dogs', JSON.stringify(updatedDogs));
+
+            // Atualiza a lista de cachorros após a remoção
+            renderDogs(updatedDogs);
+        }
+
+        // Adiciona o evento de click no botão "Adicionar Cachorro" para abrir o modal
+        document.getElementById('addDogBtn').addEventListener('click', showAddForm);
+
+        // Adiciona o evento de click no botão de fechar o modal
+        document.querySelector('.close').addEventListener('click', closeForm);
+
+        // Quando a página for carregada, buscar a lista de cachorros
+        document.addEventListener('DOMContentLoaded', fetchDogs);
+    </script>
+</body>
+</html>
